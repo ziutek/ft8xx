@@ -176,7 +176,6 @@ func main() {
 
 	fifoWait := func() {
 		for {
-
 			cmdBufferRd := eve.Read16(ft8xx.REG_CMD_READ)
 			cmdBufferWr := eve.Read16(ft8xx.REG_CMD_WRITE)
 			checkErr(eve.Err)
@@ -227,8 +226,8 @@ func main() {
 
 	fmt.Println("Animation...")
 
-	x := 96 * 16
-	y := 136 * 16
+	x := 100 * 16
+	y := 100 * 16
 	dx := 31
 	dy := 47
 	r := 24 * 16
