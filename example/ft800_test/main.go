@@ -166,31 +166,80 @@ func main() {
 
 	fmt.Println("OK.")
 
+	const (
+		white   = 0xFFFFFF
+		blue    = 0x0000FF
+		yellow0 = 0x888800
+		yellow1 = 0xffff33
+		black   = 0x000000
+	)
+
+	fifoWait := func() {
+		for {
+
+			cmdBufferRd := eve.Read16(ft8xx.REG_CMD_READ)
+			cmdBufferWr := eve.Read16(ft8xx.REG_CMD_WRITE)
+			checkErr(eve.Err)
+			if cmdBufferRd == cmdBufferWr {
+				break
+			}
+			//delay(1)
+		}
+	}
+
+	fmt.Print("Touch panel calibration... ")
+
+	offset = 0
+	offset = eve.WriteCmd(offset, ft8xx.CMD_DLSTART)
+	offset = eve.WriteCmd(offset, ft8xx.DL_CLEAR_RGB|black)
+	offset = eve.WriteCmd(offset, ft8xx.DL_CLEAR|ft8xx.CLR_COL|ft8xx.CLR_STN|ft8xx.CLR_TAG)
+	offset = eve.WriteCmd(offset, ft8xx.DL_COLOR_RGB|white)
+	offset = eve.WriteText(offset, lcdWidth/2, lcdHeight/2, 31, ft8xx.OPT_CENTER, "Touch panel calibration")
+	offset = eve.WriteCmd(offset, ft8xx.CMD_BGCOLOR)
+	offset = eve.WriteCmd(offset, ft8xx.DL_COLOR_RGB|yellow0)
+	offset = eve.WriteCmd(offset, ft8xx.CMD_FGCOLOR)
+	offset = eve.WriteCmd(offset, ft8xx.DL_COLOR_RGB|yellow1)
+	offset = eve.WriteCmd(offset, ft8xx.CMD_CALIBRATE)
+	offset = eve.WriteCmd(offset, 0)
+	eve.Write16(ft8xx.REG_CMD_WRITE, offset)
+	checkErr(eve.Err)
+
+	fifoWait()
+
+	status := eve.Read32(ft8xx.RAM_CMD + offset - 4)
+	checkErr(eve.Err)
+
+	if status != 0 {
+		var tr [6]int
+		tr[0] = eve.Read32(ft8xx.REG_TOUCH_TRANSFORM_A)
+		tr[1] = eve.Read32(ft8xx.REG_TOUCH_TRANSFORM_B)
+		tr[2] = eve.Read32(ft8xx.REG_TOUCH_TRANSFORM_C)
+		tr[3] = eve.Read32(ft8xx.REG_TOUCH_TRANSFORM_D)
+		tr[4] = eve.Read32(ft8xx.REG_TOUCH_TRANSFORM_E)
+		tr[5] = eve.Read32(ft8xx.REG_TOUCH_TRANSFORM_F)
+		fmt.Println("OK.")
+		for _, v := range tr {
+			fmt.Printf("  % 7.2f (0x%08x)\n", float64(int32(v))/65536, v)
+		}
+	} else {
+		fmt.Println("failed!")
+	}
+
 	fmt.Println("Animation...")
 
 	x := 96 * 16
 	y := 136 * 16
 	dx := 31
 	dy := 47
-	r := 20 * 16
-	for {
-		for {
-			cmdBufferRd := eve.Read16(ft8xx.REG_CMD_READ)
-			cmdBufferWr := eve.Read16(ft8xx.REG_CMD_WRITE)
-			if cmdBufferRd == cmdBufferWr {
-				offset = cmdBufferWr
-				break
-			}
-			//delay(1)
-		}
+	r := 24 * 16
 
-		const (
-			blue  = 0x0000FF
-			black = 0x000000
-		)
+	for {
 		offset = eve.WriteCmd(offset, ft8xx.CMD_DLSTART)
 		offset = eve.WriteCmd(offset, ft8xx.DL_CLEAR_RGB|black)
 		offset = eve.WriteCmd(offset, ft8xx.DL_CLEAR|ft8xx.CLR_COL|ft8xx.CLR_STN|ft8xx.CLR_TAG)
+
+		offset = eve.WriteCmd(offset, ft8xx.DL_COLOR_RGB|white)
+		offset = eve.WriteText(offset, lcdWidth/2, lcdHeight/2, 31, ft8xx.OPT_CENTER, "FT800 test application")
 		offset = eve.WriteCmd(offset, ft8xx.DL_COLOR_RGB|blue)
 		offset = eve.WriteCmd(offset, ft8xx.DL_POINT_SIZE|r)
 		offset = eve.WriteCmd(offset, ft8xx.DL_BEGIN|ft8xx.FTPOINTS)
@@ -209,5 +258,7 @@ func main() {
 		if y+r >= lcdHeight*16 || y-r < 0 {
 			dy = -dy
 		}
+
+		fifoWait()
 	}
 }

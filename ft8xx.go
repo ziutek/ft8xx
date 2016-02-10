@@ -272,92 +272,117 @@ type EVE struct {
 	Err error
 }
 
-func (ft *EVE) HostCmd(cmd HostCmd) {
-	if ft.Err != nil {
+func (eve *EVE) HostCmd(cmd HostCmd) {
+	if eve.Err != nil {
 		return
 	}
-	_, ft.Err = ft.M.WriteRead([]byte{byte(cmd), 0, 0})
+	_, eve.Err = eve.M.WriteRead([]byte{byte(cmd), 0, 0})
 }
 
-func (ft *EVE) Read8(addr int) int {
-	if ft.Err != nil {
+func (eve *EVE) Read8(addr int) int {
+	if eve.Err != nil {
 		return 0
 	}
 	wb := []byte{byte(addr >> 16), byte(addr >> 8), byte(addr), 0}
 	var rb [1]byte
-	_, ft.Err = ft.M.WriteRead(wb, nil, nil, rb[:])
+	_, eve.Err = eve.M.WriteRead(wb, nil, nil, rb[:])
 	return int(rb[0])
 }
 
-func (ft *EVE) Read16(addr int) int {
-	if ft.Err != nil {
+func (eve *EVE) Read16(addr int) int {
+	if eve.Err != nil {
 		return 0
 	}
 	wb := []byte{byte(addr >> 16), byte(addr >> 8), byte(addr), 0}
 	var rb [2]byte
-	_, ft.Err = ft.M.WriteRead(wb, nil, nil, rb[:])
+	_, eve.Err = eve.M.WriteRead(wb, nil, nil, rb[:])
 	return int(rb[0]) | int(rb[1])<<8
 }
 
-func (ft *EVE) Read32(addr int) int {
-	if ft.Err != nil {
+func (eve *EVE) Read32(addr int) int {
+	if eve.Err != nil {
 		return 0
 	}
 	wb := []byte{byte(addr >> 16), byte(addr >> 8), byte(addr), 0}
 	var rb [4]byte
-	_, ft.Err = ft.M.WriteRead(wb, nil, nil, rb[:])
+	_, eve.Err = eve.M.WriteRead(wb, nil, nil, rb[:])
 	return int(rb[0]) | int(rb[1])<<8 | int(rb[2])<<16 | int(rb[3])<<24
 }
 
-func (ft *EVE) Write8(addr, data int) int {
-	if ft.Err != nil {
+func (eve *EVE) Write8(addr, data int) int {
+	if eve.Err != nil {
 		return 0
 	}
 	wb := []byte{
 		MEM_WRITE | byte(addr>>16), byte(addr >> 8), byte(addr),
 		byte(data),
 	}
-	_, ft.Err = ft.M.WriteRead(wb)
+	_, eve.Err = eve.M.WriteRead(wb)
 	return 1
 }
 
-func (ft *EVE) Write16(addr, data int) int {
-	if ft.Err != nil {
+func (eve *EVE) Write16(addr, data int) int {
+	if eve.Err != nil {
 		return 0
 	}
 	wb := []byte{
 		MEM_WRITE | byte(addr>>16), byte(addr >> 8), byte(addr),
 		byte(data), byte(data >> 8),
 	}
-	_, ft.Err = ft.M.WriteRead(wb)
+	_, eve.Err = eve.M.WriteRead(wb)
 	return 2
 }
 
-func (ft *EVE) Write32(addr, data int) int {
-	if ft.Err != nil {
+func (eve *EVE) Write32(addr, data int) int {
+	if eve.Err != nil {
 		return 0
 	}
 	wb := []byte{
 		MEM_WRITE | byte(addr>>16), byte(addr >> 8), byte(addr),
 		byte(data), byte(data >> 8), byte(data >> 16), byte(data >> 24),
 	}
-	_, ft.Err = ft.M.WriteRead(wb)
+	_, eve.Err = eve.M.WriteRead(wb)
 	return 4
 }
 
-// Writes cmd to RAM_DL at specified offset. Returns updated offset.
-func (ft *EVE) WriteDL(offset, cmd int) int {
-	if ft.Err != nil {
+func (eve *EVE) Write(addr int, b []byte) int {
+	if len(b) == 0 || eve.Err != nil {
 		return 0
 	}
-	return offset + ft.Write32(RAM_DL+offset, cmd)
+	wa := []byte{MEM_WRITE | byte(addr>>16), byte(addr >> 8), byte(addr)}
+	_, eve.Err = eve.M.WriteRead(wa, nil, b)
+	return len(b)
+}
+
+func (eve *EVE) WriteString(addr int, s string) int {
+	return eve.Write(addr, []byte(s))
+}
+
+// Writes cmd to RAM_DL at specified offset. Returns updated offset.
+func (eve *EVE) WriteDL(offset, cmd int) int {
+	if eve.Err != nil {
+		return 0
+	}
+	return offset + eve.Write32(RAM_DL+offset, cmd)
 }
 
 // Writes cmd to RAM_CMD at specified offset. Returns updated offset.
-func (ft *EVE) WriteCmd(offset, cmd int) int {
-	if ft.Err != nil {
+func (eve *EVE) WriteCmd(offset, cmd int) int {
+	if eve.Err != nil {
 		return 0
 	}
-	return (offset + ft.Write32(RAM_CMD+offset, cmd)) & 4095
+	return (offset + eve.Write32(RAM_CMD+offset, cmd)) & 4095
+}
 
+func (eve *EVE) WriteText(offset, x, y, font, options int, txt string) int {
+	if len(txt) == 0 {
+		return offset
+	}
+	offset = eve.WriteCmd(offset, CMD_TEXT)
+	offset = eve.WriteCmd(offset, x|y<<16)
+	offset = eve.WriteCmd(offset, font|options<<16)
+	buf := make([]byte, (len(txt)+1+3)&^3)
+	copy(buf, txt)
+	eve.Write(RAM_CMD+offset, buf)
+	return (offset + len(buf)) & 4095
 }
